@@ -157,22 +157,13 @@
       3) أي رابط غير موجود في indexedPages تظهر له حالة Not indexed وكل الأرقام صفراً.
       ملاحظة: هذه النسخة الأمامية لا تجمع تلقائياً زيارات كل المستخدمين؛ الأرقام هنا تُدخل يدوياً.
     */
-    const indexedPages = [
-      /*
-      مثال — احذف التعليق وأدخل بياناتك الحقيقية:
-      {
-        url: "https://example.com/",
-        clicks7: 12,
-        clicks28: 48,
-        visits: 120,
-        searches: 31,
-        keywords: [
-          { word: "اسم الموقع", count: 18 },
-          { word: "خدمات الموقع", count: 13 }
-        ]
-      }
-      */
+    // التفعيل اليدوي: أضف الرابط هنا لقبول الطلب والسماح بدخول لوحة الإحصائيات.
+    // الفهرسة تُفحص بشكل مستقل من قاعدة library الموجودة في results.html.
+    const activatedPages = [
+      // "https://example.com/",
     ];
+    const RESULTS_PAGE_URL = "https://mohamedmadoui5195.github.io/Alislamiah-AI/results.html";
+    const ANALYTICS_KEY = "alislamiah_search_analytics_v1";
 
     const urlInput = document.getElementById("siteUrl");
     const checkBtn = document.getElementById("checkBtn");
@@ -194,70 +185,65 @@
       resultMessage.className = "message show " + kind;
     }
 
-    function displayStats(url, entry) {
-      const indexed = Boolean(entry);
+    function normalizeUrl(value) {
+      const parsed = new URL(value);
+      if (!["http:", "https:"].includes(parsed.protocol)) throw new Error("protocol");
+      parsed.hash = ""; parsed.hostname = parsed.hostname.toLowerCase();
+      if (parsed.pathname.length > 1) parsed.pathname = parsed.pathname.replace(/\/+$/, "");
+      return parsed.href;
+    }
+    function isActivated(url) { return activatedPages.some(item => { try { return normalizeUrl(item) === url; } catch (_) { return false; } }); }
+    function getEvents() { try { const a = JSON.parse(localStorage.getItem(ANALYTICS_KEY) || "[]"); return Array.isArray(a) ? a : []; } catch (_) { return []; } }
+    function setNumber(id, value) { document.getElementById(id).textContent = (Number(value) || 0).toLocaleString("en-US"); }
+    function displayStats(url, isIndexed, events) {
       document.getElementById("checkedUrl").textContent = url;
       const status = document.getElementById("indexStatus");
-      status.textContent = indexed ? "Indexed page" : "Not indexed page";
-      status.className = "status " + (indexed ? "indexed" : "not-indexed");
-
-      document.getElementById("indexedValue").textContent = indexed ? "1" : "0";
-      document.getElementById("notIndexedValue").textContent = indexed ? "0" : "1";
-      document.getElementById("clicks7").textContent = indexed ? (Number(entry.clicks7) || 0).toLocaleString("en-US") : "0";
-      document.getElementById("clicks28").textContent = indexed ? (Number(entry.clicks28) || 0).toLocaleString("en-US") : "0";
-      document.getElementById("visitsValue").textContent = indexed ? (Number(entry.visits) || 0).toLocaleString("en-US") : "0";
-      document.getElementById("searchesValue").textContent = indexed ? (Number(entry.searches) || 0).toLocaleString("en-US") : "0";
-
-      const keywordList = document.getElementById("keywordList");
-      keywordList.replaceChildren();
-      if (indexed && Array.isArray(entry.keywords) && entry.keywords.length) {
-        keywordList.className = "";
-        entry.keywords.forEach(item => {
-          const row = document.createElement("div");
-          row.className = "keyword-row";
-          const word = document.createElement("span");
-          word.textContent = item.word;
-          const count = document.createElement("strong");
-          count.textContent = (Number(item.count) || 0).toLocaleString("en-US") + " مرة";
-          row.append(word, count);
-          keywordList.appendChild(row);
-        });
-      } else {
-        keywordList.className = "keyword-empty";
-        keywordList.textContent = indexed ? "لم تُضف كلمات بحث لهذه الصفحة بعد." : "لا توجد كلمات بحث؛ الصفحة غير مفهرسة.";
-      }
-      document.getElementById("statsNote").textContent = indexed
-        ? "هذه هي الأرقام المدخلة في إعدادات الكود لهذه الصفحة."
-        : "هذه الصفحة غير موجودة في قائمة indexedPages؛ لذلك جميع الإحصائيات صفر.";
+      status.textContent = isIndexed ? "Indexed page" : "Not indexed page";
+      status.className = "status " + (isIndexed ? "indexed" : "not-indexed");
+      setNumber("indexedValue", isIndexed ? 1 : 0); setNumber("notIndexedValue", isIndexed ? 0 : 1);
+      const relevant = isIndexed ? events.filter(e => { try { return normalizeUrl(e.url) === url; } catch (_) { return false; } }) : [];
+      const now = Date.now(), day7 = now - 7*24*60*60*1000, day28 = now - 28*24*60*60*1000;
+      setNumber("clicks7", relevant.filter(e => e.type === "click" && Number(e.timestamp) >= day7 && Number(e.timestamp) <= now).length);
+      setNumber("clicks28", relevant.filter(e => e.type === "click" && Number(e.timestamp) >= day28 && Number(e.timestamp) <= now).length);
+      setNumber("visitsValue", relevant.filter(e => e.type === "visit").length);
+      setNumber("searchesValue", relevant.filter(e => e.type === "search").length);
+      const counts = new Map();
+      relevant.filter(e => e.type === "search" && e.query).forEach(e => counts.set(e.query, (counts.get(e.query) || 0) + 1));
+      const keywordList = document.getElementById("keywordList"); keywordList.replaceChildren();
+      const words = [...counts.entries()].sort((a,b) => b[1]-a[1]).slice(0,20);
+      if (words.length) { keywordList.className = ""; words.forEach(([word,count]) => { const row=document.createElement("div"); row.className="keyword-row"; const label=document.createElement("span"); label.textContent=word; const amount=document.createElement("strong"); amount.textContent=count.toLocaleString("en-US")+" مرة"; row.append(label,amount); keywordList.appendChild(row); }); }
+      else { keywordList.className="keyword-empty"; keywordList.textContent = isIndexed ? "لا توجد بيانات بحث مسجلة لهذه الصفحة بعد." : "لا توجد كلمات بحث؛ الصفحة غير مفهرسة."; }
+      document.getElementById("statsNote").textContent = isIndexed
+        ? "تُعرض البيانات المسجلة محلياً في results.html لهذا الرابط. ستبدأ الإحصائيات بالتجمع بعد استخدام البحث والنقر على النتائج."
+        : "هذه الصفحة غير موجودة في فهرس results.html؛ لذلك جميع الإحصائيات صفر.";
       statsPanel.classList.add("show");
     }
-
-    function findIndexedPage(normalized) {
-      return indexedPages.find(page => {
-        try { return normalizeUrl(page.url) === normalized; }
-        catch (_) { return false; }
-      }) || null;
+    async function checkPage(url) {
+      // Tفعيل dashboard access manually; index status comes from the live results page's library.
+      if (!isActivated(url)) { statsPanel.classList.remove("show"); showMessage("هذا الرابط غير مفعّل يدوياً للدخول إلى لوحة الإحصائيات.", "bad"); return; }
+      checkBtn.disabled = true; checkBtn.textContent = "جارٍ التحقق...";
+      try {
+        const response = await fetch(RESULTS_PAGE_URL, { cache: "no-store" });
+        if (!response.ok) throw new Error("fetch");
+        const html = await response.text();
+        const match = html.match(/const\s+library\s*=\s*(\[[\s\S]*?\])\s*;?/);
+        if (!match) throw new Error("library");
+        let library; try { library = (new Function("return (" + match[1] + ")"))(); } catch (_) { throw new Error("parse"); }
+        const isIndexed = Array.isArray(library) && library.some(item => { try { return normalizeUrl(item.url) === url; } catch (_) { return false; } });
+        const events = getEvents();
+        displayStats(url, isIndexed, events);
+        showMessage(isIndexed ? "تم العثور على الرابط في قاعدة المواقع داخل results.html." : "الرابط مفعّل للوصول إلى اللوحة، لكنه غير موجود في فهرس results.html.", isIndexed ? "good" : "bad");
+      } catch (error) {
+        statsPanel.classList.remove("show");
+        showMessage("تعذر قراءة قاعدة results.html. تأكد من نشر الصفحة وأنها متاحة عبر الإنترنت، ثم أعد المحاولة.", "bad");
+      } finally { checkBtn.disabled = false; checkBtn.textContent = "التحقق وعرض الإحصائيات"; }
     }
 
-    checkBtn.addEventListener("click", () => {
-      const raw = urlInput.value.trim();
-      statsPanel.classList.remove("show");
-      resultMessage.className = "message";
-      if (!raw) {
-        showMessage("أدخل رابط الصفحة أولاً.", "bad");
-        urlInput.focus();
-        return;
-      }
-      let normalized;
-      try {
-        normalized = normalizeUrl(raw);
-      } catch (_) {
-        showMessage("الرابط غير صالح. أدخل رابطاً كاملاً يبدأ بـ https:// أو http://", "bad");
-        return;
-      }
-      const entry = findIndexedPage(normalized);
-      displayStats(normalized, entry);
-      showMessage(entry ? "تم العثور على الرابط في قائمة الصفحات المفهرسة." : "هذه الصفحة غير مفهرسة حالياً في قائمة Alislamiah AI.", entry ? "good" : "bad");
+    checkBtn.addEventListener("click", async () => {
+      const raw = urlInput.value.trim(); statsPanel.classList.remove("show"); resultMessage.className = "message";
+      if (!raw) { showMessage("أدخل رابط الصفحة أولاً.", "bad"); urlInput.focus(); return; }
+      let normalized; try { normalized = normalizeUrl(raw); } catch (_) { showMessage("الرابط غير صالح. أدخل رابطاً كاملاً يبدأ بـ https:// أو http://", "bad"); return; }
+      await checkPage(normalized);
     });
 
     whatsappRequest.addEventListener("click", (event) => {

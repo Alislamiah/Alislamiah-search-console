@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Analytics - Alislamiah AI</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Arial,Tahoma,sans-serif;min-height:100vh;background:#06101f;color:#fff;display:flex;align-items:center;justify-content:center;padding:20px}
+.container{width:100%;max-width:720px;text-align:center}
+.card{background:#091a30;border:1px solid #163252;border-radius:24px;padding:35px 28px;box-shadow:0 18px 55px rgba(0,0,0,.35);text-align:right}
+.icon{width:64px;height:64px;margin:0 auto 20px;border-radius:18px;background:#0d2948;display:flex;align-items:center;justify-content:center;font-size:30px}
+h2{font-size:22px;margin-bottom:13px;text-align:center}
+.message{margin-top:16px;padding:14px;border-radius:12px;line-height:1.8;font-size:14px;text-align:right}
+.message.show{display:block}.message.bad{color:#ffd4dd;background:#3a1720;border:1px solid #793044}.message.good{color:#bdf7df;background:#0d332a;border:1px solid #1d7557}
+.stats{margin-top:18px;text-align:right}
+.status{display:inline-block;border-radius:999px;padding:7px 11px;font-size:12px;font-weight:bold}.status.indexed{color:#bdf7df;background:#0d332a;border:1px solid #1d7557}.status.not-indexed{color:#ffd4dd;background:#3a1720;border:1px solid #793044}
+.checked-url{background:#061426;border:1px solid #17324f;border-radius:11px;padding:12px;margin-bottom:12px;direction:ltr;text-align:left;color:#9fc6ff;font-size:13px;overflow-wrap:anywhere}
+.metric-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.metric{background:#061426;border:1px solid #17324f;border-radius:14px;padding:16px 12px;text-align:center}.metric-label{color:#aebdce;font-size:13px;margin-bottom:8px}.metric-value{color:#fff;font-size:27px;font-weight:800}
+.back{display:inline-block;margin-top:20px;color:#6fa8ff;text-decoration:none;font-size:14px}
+</style>
+</head>
+<body>
+<main class="container">
+<section class="card">
+<div class="icon">📊</div>
+<h2>إحصائيات الصفحة</h2>
+<div id="checkedUrl" class="checked-url"></div>
+<div class="stats-top"><span id="indexStatus" class="status">—</span></div>
+<div id="resultMessage" class="message"></div>
+<div id="statsPanel" class="stats" style="display:none">
+<div class="metric-grid">
+<div class="metric"><div class="metric-label">Indexed</div><div class="metric-value" id="indexedValue">0</div></div>
+<div class="metric"><div class="metric-label">Not indexed</div><div class="metric-value" id="notIndexedValue">0</div></div>
+<div class="metric"><div class="metric-label">Clicks — 7 أيام</div><div class="metric-value" id="clicks7">0</div></div>
+<div class="metric"><div class="metric-label">Clicks — 28 يوماً</div><div class="metric-value" id="clicks28">0</div></div>
+<div class="metric"><div class="metric-label">عدد الزيارات</div><div class="metric-value" id="visitsValue">0</div></div>
+<div class="metric"><div class="metric-label">مرات البحث</div><div class="metric-value" id="searchesValue">0</div></div>
+</div>
+</div>
+<a class="back" href="index.html">← الرجوع للتحقق</a>
+</section>
+</main>
+<script>
+const RESULTS_PAGE_URL = "https://Alislamiah.github.io/Alislamiah-AI/results.html";
+const ANALYTICS_KEY = "alislamiah_search_analytics_v1";
+function getParam(name){const u=new URL(window.location.href);return u.searchParams.get(name)}
+function normalizeUrl(v){const u=new URL(v.trim());u.hash="";u.hostname=u.hostname.toLowerCase();if(u.pathname.length>1)u.pathname=u.pathname.replace(/\/+$/,"");return u.href}
+function setNumber(id,v){document.getElementById(id).textContent=(Number(v)||0).toLocaleString("en-US")}
+function getEvents(){try{const a=JSON.parse(localStorage.getItem(ANALYTICS_KEY)||"[]");return Array.isArray(a)?a:[]}catch(_){return[]}}
+async function load(){
+  const rawParam = getParam("url");
+  if(!rawParam){document.getElementById("resultMessage").textContent="لا يوجد رابط.";document.getElementById("resultMessage").className="message show bad";return}
+  let url;try{url=normalizeUrl(rawParam)}catch(_){document.getElementById("resultMessage").textContent="الرابط غير صالح.";document.getElementById("resultMessage").className="message show bad";return}
+  document.getElementById("checkedUrl").textContent=url;
+  try{
+    const res=await fetch(RESULTS_PAGE_URL,{cache:"no-store"});if(!res.ok)throw new Error();
+    const html=await res.text();const m=html.match(/const\s+library\s*=\s*(\[[\s\S]*?\])\s*;?/);if(!m)throw new Error();
+    let lib;try{lib=(new Function("return ("+m[1]+")"))()}catch(_){throw new Error()}
+    const isIndexed=Array.isArray(lib)&&lib.some(i=>{try{return i.url&&normalizeUrl(i.url)===url}catch(_){return false}});
+    const events=getEvents();
+    const rel=events.filter(e=>{try{return normalizeUrl(e.url)===url}catch(_){return false}});
+    const now=Date.now(),d7=now-7*24*60*60*1000,d28=now-28*24*60*60*1000;
+    document.getElementById("indexStatus").textContent=isIndexed?"Indexed page":"Not indexed page";
+    document.getElementById("indexStatus").className="status "+(isIndexed?"indexed":"not-indexed");
+    setNumber("indexedValue",isIndexed?1:0);setNumber("notIndexedValue",isIndexed?0:1);
+    setNumber("clicks7",rel.filter(e=>e.type==="click"&&Number(e.timestamp)>=d7).length);
+    setNumber("clicks28",rel.filter(e=>e.type==="click"&&Number(e.timestamp)>=d28).length);
+    setNumber("visitsValue",rel.filter(e=>e.type==="visit").length);
+    setNumber("searchesValue",rel.filter(e=>e.type==="search").length);
+    document.getElementById("statsPanel").style.display="block";
+    document.getElementById("resultMessage").textContent=isIndexed?"✅ الموقع مفهرس حالياً.":"⚠️ الموقع غير مفهرس بعد.";
+    document.getElementById("resultMessage").className="message show "+(isIndexed?"good":"bad");
+  }catch(e){
+    document.getElementById("resultMessage").textContent="تعذر قراءة results.html.";
+    document.getElementById("resultMessage").className="message show bad";
+  }
+}
+load();
+</script>
+</body>
+</html>

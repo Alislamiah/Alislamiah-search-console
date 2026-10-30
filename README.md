@@ -162,7 +162,7 @@
     const activatedPages = [
       // "https://Alislamiah.github.io/Alislamiah-_net/",
     ];
-    const RESULTS_PAGE_URL = "https://mohamedmadoui5195.github.io/Alislamiah-AI/results.html";
+    const RESULTS_PAGE_URL = "https://Alislamiah.github.io/Alislamiah-AI/results.html";
     const ANALYTICS_KEY = "alislamiah_search_analytics_v1";
 
     const urlInput = document.getElementById("siteUrl");

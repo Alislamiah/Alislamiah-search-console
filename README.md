@@ -160,7 +160,7 @@
     // التفعيل اليدوي: أضف الرابط هنا لقبول الطلب والسماح بدخول لوحة الإحصائيات.
     // الفهرسة تُفحص بشكل مستقل من قاعدة library الموجودة في results.html.
     const activatedPages = [
-      // "https://mohamedmadoui5195.github.io/Alislamiah-_net/",
+      // "https://Alislamiah.github.io/Alislamiah-_net/",
     ];
     const RESULTS_PAGE_URL = "https://mohamedmadoui5195.github.io/Alislamiah-AI/results.html";
     const ANALYTICS_KEY = "alislamiah_search_analytics_v1";
